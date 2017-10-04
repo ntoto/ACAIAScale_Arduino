@@ -427,8 +427,7 @@ bool Scale::tare() {
     return false;
   }
 
-  Serial.println("sending tare");
-  //sendTare();
+  sendTare();
   return true;
 }
 
