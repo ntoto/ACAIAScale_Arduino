@@ -45,6 +45,7 @@ public:
   unsigned char getBattery();
   void update();
   void connect();
+  void disconnect();
   bool tare();
   Scale();
   ~Scale();

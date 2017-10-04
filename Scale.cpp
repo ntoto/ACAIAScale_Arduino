@@ -411,6 +411,7 @@ void Scale::update() {
   }
 }
 
+
 void Scale::connect() {
 
   if (connected) {
@@ -418,6 +419,17 @@ void Scale::connect() {
   }
     
   BLE.scanForUuid("1820");
+}
+
+
+void Scale::disconnect() {
+
+  if (!connected) {
+    return;
+  }
+
+  reset("disconnect device");
+  BLE.stopScan();
 }
 
 
