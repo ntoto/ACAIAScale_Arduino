@@ -7,8 +7,8 @@ bool isTare = false;
 void setup() 
 {
     Serial.begin(9600);
-    scale = new Scale(8, 9);
-    scale->connect("001C9714F68E");
+    scale = new Scale();
+    scale->connect();
 
     start = millis();
 }

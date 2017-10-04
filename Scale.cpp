@@ -1,5 +1,7 @@
 #include "Scale.h"
 
+#include <CurieBLE.h>
+
 #define HEADER1 0xef
 #define HEADER2 0xdd
 
@@ -19,7 +21,13 @@
 #define BATTERY_EVENT_LEN 1
 
 
-void Scale::serialPrintf(const char *format, ...) {
+#define READ_HEADER 0
+#define READ_DATA 1
+
+#define HEADER_SIZE 3
+
+
+void Scale::printf(const char *format, ...) {
 
   va_list args;
   char buffer[100];
@@ -28,12 +36,7 @@ void Scale::serialPrintf(const char *format, ...) {
   vsnprintf (buffer, sizeof(buffer), format, args);
   buffer[sizeof(buffer) - 1] = '\0';
 
-  serial->print(buffer);
-}
-
-
-void Scale::readAtData() {
-  
+  Serial.print(buffer);
 }
 
 
@@ -62,7 +65,7 @@ void Scale::sendMessage(char msgType, const unsigned char *payload, size_t len) 
   bytes[len + 3] = (cksum1 & 0xFF);
   bytes[len + 4] = (cksum2 & 0xFF);
 
-  serial->write(bytes, len + 5);
+  characteristic.writeValue(bytes, len + 5);
   
   free(bytes);
 }
@@ -129,7 +132,7 @@ void Scale::sendNotificationRequest() {
 }
 
 
-void dump(char * msg, unsigned char * payload, size_t len) {
+void dump(const char * msg, const unsigned char * payload, size_t len) {
 
   Serial.print(msg);
   
@@ -291,105 +294,130 @@ int Scale::parseScaleData(int msgType, unsigned char *payload, size_t len) {
 }
 
 
-int Scale::readScaleData(int msgType) {
+bool Scale::reset(char * message) {
 
-  unsigned char len = 0;
-  unsigned char cksum[2];
+  Serial.println(message);
   
-  if (msgType == 8 || msgType == 12 || msgType == 7) {
-    // using readBytes for read timeout
-    int val = serial->readBytes(&len, 1);
-    if (val < 1) {
-      Serial.println("Failed to receive message data length");
-      return -1;
-    }
-    
-    len--;
-  }
-  else {
-    switch(msgType) {
-      case 0:
-        len = 2;
-        break;
-        
-      default:
-        len = 0;
-    }
-  }
-    
-  unsigned char *payload = (unsigned char*)malloc(len);
-  if (serial->readBytes(payload, len) < 0) {
-    Serial.println("Failed to receive message data");
-    return -1;
+  if (peripheral.connected()) {
+    peripheral.disconnect();
   }
 
-  if (serial->readBytes(cksum, 2) < 0) {
-    Serial.println("Failed to receive message checksum");
-    return -1;
+  connected = false;
+  buffer->reset();
+  notificationRequestSent = false;
+  BLE.scanForUuid("1820");
+
+  return false;
+}
+
+
+bool Scale::isConnected() {
+
+  if (connected && peripheral.connected()) {
+    return true;
   }
 
-  // TODO: verify checksum
+  if (connected) {
+    return reset("device disconnected");
+  }
+  
+  peripheral = BLE.available();
+  if (!peripheral) {
+    return false;
+  }
 
-  int ret = parseScaleData(msgType, payload, len);
-  free(payload);
+  BLE.stopScan();
+  
+  if (!peripheral.connect()) {
+    return reset("failed to connect");
+  }
+  
+  if (!peripheral.discoverAttributes()) {
+    return reset("failed to discover attributes");
+  }
 
-  return ret;
+  characteristic = peripheral.characteristic("2a80");
+  if (!characteristic) {
+    return reset("failed to get characteristic");
+  }
+  
+  characteristic.subscribe();
+  connected = true;
+
+  return true;
 }
 
 
 void Scale::update() {
 
-  // potentially need circular header to keep track of last data set if not enough
-  unsigned char header[3];
+  unsigned char * header = NULL;
 
-  if (!this->connected) {
+  if (!isConnected()) {
     return;
   }
 
   sendHeartbeat();
 
-  while (serial->available()) {
+  while (characteristic.valueUpdated()) {
 
-    int val = serial->read();
-    if (val < 0) {
-      return;
-    }
+    buffer->addBytes(characteristic.value(), characteristic.valueLength());
 
-    if (val != HEADER1) {
-      continue;
-    }
+    if (state == READ_HEADER) {
+      if (!buffer->hasBytes(HEADER_SIZE)) {
+        continue;
+      }
 
-    header[0] = val;
-    if (serial->readBytes(header+1, sizeof(header)-1) != sizeof(header)-1) {
-      return -1;
-    }
+      header = buffer->getPayload();
+      if (header[0] != HEADER1 || header[1] != HEADER2) {
+        dump("invalid header: ", header, HEADER_SIZE);
+        buffer->reset();
+        continue;
+      }
 
-    if (strncmp(header, "AT+", sizeof(header)) == 0) {
-      readAtData();
+      state = READ_DATA;
     }
-    else if (header[0] == HEADER1 && header[1] == HEADER2) {
-      readScaleData(header[2]);
+    else {
+      if (!buffer->hasBytes(HEADER_SIZE + 1)) {
+        continue;
+      }
+
+      unsigned char msgType = buffer->getByte(2);
+      unsigned char len = 0;
+      unsigned char offset = 0;
+      
+      if (msgType == MSG_STATUS || msgType == MSG_EVENT || msgType == MSG_INFO) {
+        len = buffer->getByte(3);
+        offset = 1;
+      }
+      else {
+        switch(msgType) {
+        case 0:
+          len = 2;
+          break;
+        
+        default:
+          len = 0;
+        }
+      }
+      
+      if (!buffer->hasBytes(HEADER_SIZE + len + 2)) {
+        continue;
+      }
+
+      parseScaleData(msgType, buffer->getPayload() + HEADER_SIZE + offset, len - offset);
+      buffer->reset();
+      state = READ_HEADER;
     }
   }
 }
 
-void Scale::connect(char *mac) {
+void Scale::connect() {
 
-  if (this->connected) {
-    return true;
+  if (connected) {
+    return;
   }
     
-  serial->print("AT+IMME1");
-  serial->print("AT+MODE0");
-  serial->print("AT+COMP1");
-  serial->print("AT+UUID0x1800");
-  serial->print("AT+CHAR0x2A80");
-  serial->print("AT+ROLE1");
-  // delay required to register new mode
-  delay(1000);
-  serialPrintf("AT+CO0%s", mac);
-
-  this->connected = true;
+  BLE.scanForUuid("1820");
 }
 
 
@@ -399,8 +427,8 @@ bool Scale::tare() {
     return false;
   }
 
-      Serial.println("sending tare");
-  sendTare();
+  Serial.println("sending tare");
+  //sendTare();
   return true;
 }
 
@@ -424,9 +452,10 @@ unsigned char Scale::getBattery() {
 }
 
 
-Scale::Scale(int txPin, int rxPin) {
+Scale::Scale() {
 
   this->connected = false;
+  this->state = READ_HEADER;
   this->ready = false;
   this->notificationRequestSent = false;
   this->weight = 0;
@@ -434,11 +463,14 @@ Scale::Scale(int txPin, int rxPin) {
   this->battery = 0;
   this->lastHeartbeat = 0;
 
-  serial = new SoftwareSerial(txPin, rxPin);
-  serial->begin(9600);
+  this->buffer = new Buffer();
+
+  BLE.begin();
 }
 
 
 Scale::~Scale() {
+
+  delete(this->buffer);
 }
 

@@ -1,24 +1,28 @@
 #ifndef SCALE_H
 #define SCALE_H
 
-#include <SoftwareSerial.h>
-#include <Arduino.h>
+#include <CurieBLE.h>
+#include "Buffer.h"
 
 class Scale {
 
   float weight;
   bool weightHasChanged;
 
+  Buffer * buffer;
+  int state;
+  
+  BLEDevice peripheral;
+  BLECharacteristic characteristic;
+  
   unsigned char battery;
   
-  SoftwareSerial * serial = NULL;
   bool connected;
   bool ready;
   bool notificationRequestSent;
   unsigned long lastHeartbeat;
 
-  void serialPrintf(const char *format, ...);
-  void readAtData();
+  void printf(const char *format, ...);
   void sendMessage(char msgType, const unsigned char *payload, size_t len);
   void sendEvent(unsigned char *payload, size_t len);
   void sendHeartbeat();
@@ -32,16 +36,17 @@ class Scale {
   int parseScaleEvents(unsigned char *payload, size_t len);
   int parseInfo(unsigned char *payload, size_t len);
   int parseScaleData(int msgType, unsigned char *payload, size_t len);
-  int readScaleData(int msgType);
+  bool isConnected();
+  bool reset(char * message);
   
 public:
   bool hasWeightChanged();
   float getWeight();
   unsigned char getBattery();
   void update();
-  void connect(char *mac);
+  void connect();
   bool tare();
-  Scale::Scale(int txPin, int rxPin);
+  Scale();
   ~Scale();
 };
 
