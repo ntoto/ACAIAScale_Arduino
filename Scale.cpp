@@ -45,7 +45,7 @@ void Scale::sendMessage(char msgType, const unsigned char *payload, size_t len) 
   unsigned char *bytes = (unsigned char *)malloc(5 + len);
   unsigned char cksum1 = 0;
   unsigned char cksum2 = 0;
-  int i;
+  unsigned int i;
 
   bytes[0] = HEADER1;
   bytes[1] = HEADER2;
@@ -136,7 +136,7 @@ void dump(const char * msg, const unsigned char * payload, size_t len) {
 
   Serial.print(msg);
   
-  for (int i = 0; i < len; i++) {
+  for (unsigned int i = 0; i < len; i++) {
     char buf[4];
     snprintf(buf, sizeof(buf), "%.2X", payload[i]);
     Serial.print(buf);
@@ -242,7 +242,7 @@ int Scale::parseScaleEvent(unsigned char *payload, size_t len) {
 
 int Scale::parseScaleEvents(unsigned char *payload, size_t len) {
 
-  int lastPos = 0;
+  unsigned int lastPos = 0;
   while (lastPos < len) {
     int pos = parseScaleEvent(payload + lastPos, len - lastPos);
     if (pos < 0) {
@@ -294,7 +294,7 @@ int Scale::parseScaleData(int msgType, unsigned char *payload, size_t len) {
 }
 
 
-bool Scale::reset(char * message) {
+bool Scale::reset(const char * message) {
 
   Serial.println(message);
   
