@@ -3,6 +3,7 @@
 Scale *scale = NULL;
 unsigned long start;
 bool isTare = false;
+bool isRunning = false;
 
 void setup() 
 {
@@ -25,8 +26,15 @@ void loop() {
     Serial.println(scale->getSeconds());
 
     if (!isTare) {
+      Serial.println("starting shot");
       isTare = scale->tare();
-      scale->startTimer();
+      isRunning = scale->startTimer();
+    }
+
+    if (isRunning && scale->getSeconds() >= 10) {
+      Serial.println("stopping shot");
+      scale->stopTimer();
+      isRunning = false;
     }
   }
 

@@ -489,6 +489,17 @@ bool Scale::startTimer() {
 }
 
 
+bool Scale::stopTimer() {
+
+  if (!ready) {
+    return false;
+  }
+
+  sendTimerCommand(TIMER_STOP);
+  return true;
+}
+
+
 bool Scale::hasWeightChanged() {
 
   return weightHasChanged;
