@@ -11,15 +11,22 @@
 #define MSG_STATUS 8
 #define MSG_IDENTIFY 11
 #define MSG_EVENT 12
+#define MSG_TIMER 13
 
 #define EVENT_WEIGHT 5
 #define EVENT_BATTERY 6
+#define EVENT_TIMER 7
 #define EVENT_ACK 11
 
-#define WEIGHT_EVENT_LEN 6
-#define ACK_EVENT_LEN 2
-#define BATTERY_EVENT_LEN 1
+#define EVENT_WEIGHT_LEN 6
+#define EVENT_BATTERY_LEN 1
+#define EVENT_TIMER_LEN 3
+#define EVENT_ACK_LEN 2
 
+#define TIMER_START 0
+#define TIMER_PAUSE 1
+#define TIMER_STOP 2
+#define TIMER_WEIGHTSTART 3
 
 #define READ_HEADER 0
 #define READ_DATA 1
@@ -107,6 +114,13 @@ void Scale::sendTare() {
 }
 
 
+void Scale::sendTimerCommand(unsigned char command) {
+
+  unsigned char payload[] = {0x00, command};
+  sendMessage(MSG_TIMER, payload, sizeof(payload));
+}
+
+
 void Scale::sendId() {
   
   unsigned char payload[] = {0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d,0x2d};
@@ -148,7 +162,7 @@ void dump(const char * msg, const unsigned char * payload, size_t len) {
 
 int Scale::parseWeightEvent(unsigned char *payload, size_t len) {
 
-  if (len < WEIGHT_EVENT_LEN) {
+  if (len < EVENT_WEIGHT_LEN) {
     dump("Invalid weight event length: ", payload, len);
     return -1;
   }
@@ -176,34 +190,50 @@ int Scale::parseWeightEvent(unsigned char *payload, size_t len) {
   this->weight = value;
   this->weightHasChanged = true;
 
-  return WEIGHT_EVENT_LEN;
+  return EVENT_WEIGHT_LEN;
 }
 
 
 int Scale::parseAckEvent(unsigned char *payload, size_t len) {
 
-  if (len < ACK_EVENT_LEN) {
+  if (len < EVENT_ACK_LEN) {
     dump("Invalid ack event length: ", payload, len);
     return -1;
   }
 
   // ignore ack
   
-  return ACK_EVENT_LEN;
+  return EVENT_ACK_LEN;
 }
 
 
 int Scale::parseBatteryEvent(unsigned char *payload, size_t len) {
 
-  if (len < BATTERY_EVENT_LEN) {
+  if (len < EVENT_BATTERY_LEN) {
     dump("Invalid battery event length: ", payload, len);
     return -1;
   }
 
   this->battery = payload[0];
   
-  return BATTERY_EVENT_LEN;
+  return EVENT_BATTERY_LEN;
 }
+
+
+int Scale::parseTimerEvent(unsigned char *payload, size_t len) {
+
+  if (len < EVENT_TIMER_LEN) {
+    dump("Invalid timer event length: ", payload, len);
+    return -1;
+  }
+
+  this->minutes = payload[0];
+  this->seconds = payload[1];
+  this->mseconds = payload[2];
+  
+  return EVENT_TIMER_LEN;
+}
+
 
 // returns last position in payload
 int Scale::parseScaleEvent(unsigned char *payload, size_t len) {
@@ -221,6 +251,10 @@ int Scale::parseScaleEvent(unsigned char *payload, size_t len) {
 
     case EVENT_BATTERY:
       val = parseBatteryEvent(ptr, ptrLen);
+      break;
+
+    case EVENT_TIMER:
+      val = parseTimerEvent(ptr, ptrLen);
       break;
       
     case EVENT_ACK:
@@ -444,6 +478,17 @@ bool Scale::tare() {
 }
 
 
+bool Scale::startTimer() {
+
+  if (!ready) {
+    return false;
+  }
+
+  sendTimerCommand(TIMER_START);
+  return true;
+}
+
+
 bool Scale::hasWeightChanged() {
 
   return weightHasChanged;
@@ -463,6 +508,12 @@ unsigned char Scale::getBattery() {
 }
 
 
+unsigned char Scale::getSeconds() {
+
+  return this->seconds;
+}
+
+
 Scale::Scale() {
 
   this->connected = false;
@@ -470,9 +521,13 @@ Scale::Scale() {
   this->ready = false;
   this->notificationRequestSent = false;
   this->weight = 0;
-  this->weightHasChanged = true;
+  this->weightHasChanged = false;
   this->battery = 0;
   this->lastHeartbeat = 0;
+
+  this->minutes = 0;
+  this->seconds = 0;
+  this->mseconds = 0;
 
   this->buffer = new Buffer();
 

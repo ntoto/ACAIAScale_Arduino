@@ -21,6 +21,13 @@ void loop() {
     Serial.println(scale->getBattery());
     Serial.print("weight: ");
     Serial.println(scale->getWeight());
+    Serial.print("seconds: ");
+    Serial.println(scale->getSeconds());
+
+    if (!isTare) {
+      isTare = scale->tare();
+      scale->startTimer();
+    }
   }
 
   delay(1);

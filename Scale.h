@@ -16,6 +16,9 @@ class Scale {
   BLECharacteristic characteristic;
   
   unsigned char battery;
+  unsigned char minutes;
+  unsigned char seconds;
+  unsigned char mseconds;
   
   bool connected;
   bool ready;
@@ -29,9 +32,11 @@ class Scale {
   void sendTare();
   void sendId();
   void sendNotificationRequest();
+  void sendTimerCommand(unsigned char command);
   int parseAckEvent(unsigned char *payload, size_t len);
   int parseWeightEvent(unsigned char *payload, size_t len);
   int parseBatteryEvent(unsigned char *payload, size_t len);
+  int parseTimerEvent(unsigned char *payload, size_t len);
   int parseScaleEvent(unsigned char *payload, size_t len);
   int parseScaleEvents(unsigned char *payload, size_t len);
   int parseInfo(unsigned char *payload, size_t len);
@@ -43,10 +48,12 @@ public:
   bool hasWeightChanged();
   float getWeight();
   unsigned char getBattery();
+  unsigned char getSeconds();
   void update();
   void connect();
   void disconnect();
   bool tare();
+  bool startTimer();
   Scale();
   ~Scale();
 };
