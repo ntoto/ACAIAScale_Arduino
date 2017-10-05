@@ -381,6 +381,24 @@ bool Scale::isConnected() {
 }
 
 
+bool Scale::hasBytes(unsigned int bytes) {
+
+  if (buffer->hasBytes(bytes)) {
+    return true;
+  }
+
+  // do not loop - try to keep the buffer data queue small
+  if (characteristic.valueUpdated()) {
+    buffer->addBytes(characteristic.value(), characteristic.valueLength()); 
+    if (buffer->hasBytes(bytes)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
 void Scale::update() {
 
   unsigned char * header = NULL;
@@ -391,27 +409,26 @@ void Scale::update() {
 
   sendHeartbeat();
 
-  while (characteristic.valueUpdated()) {
-
-    buffer->addBytes(characteristic.value(), characteristic.valueLength());
+  while (1) {
 
     if (state == READ_HEADER) {
-      if (!buffer->hasBytes(HEADER_SIZE)) {
-        continue;
+      if (!hasBytes(HEADER_SIZE)) {
+        break;
       }
 
       header = buffer->getPayload();
       if (header[0] != HEADER1 || header[1] != HEADER2) {
         dump("invalid header: ", header, HEADER_SIZE);
-        buffer->reset();
+        //buffer->reset();
+        buffer->removeBytes(1);
         continue;
       }
 
       state = READ_DATA;
     }
     else {
-      if (!buffer->hasBytes(HEADER_SIZE + 1)) {
-        continue;
+      if (!hasBytes(HEADER_SIZE + 1)) {
+        break;
       }
 
       unsigned char msgType = buffer->getByte(2);
@@ -420,6 +437,9 @@ void Scale::update() {
       
       if (msgType == MSG_STATUS || msgType == MSG_EVENT || msgType == MSG_INFO) {
         len = buffer->getByte(3);
+        if (len == 0) {
+          len = 1;
+        }
         offset = 1;
       }
       else {
@@ -433,12 +453,12 @@ void Scale::update() {
         }
       }
       
-      if (!buffer->hasBytes(HEADER_SIZE + len + 2)) {
-        continue;
+      if (!hasBytes(HEADER_SIZE + len + 2)) {
+        break;
       }
 
       parseScaleData(msgType, buffer->getPayload() + HEADER_SIZE + offset, len - offset);
-      buffer->reset();
+      buffer->removeBytes(HEADER_SIZE + len + 2);
       state = READ_HEADER;
     }
   }
@@ -476,6 +496,10 @@ bool Scale::tare() {
   return true;
 }
 
+
+// TODO:: track internal scale state to prevent sending
+// multiple start/stop commands. That seems to cause some
+// issues with the packets received from the scale (BAD)
 
 bool Scale::startTimer() {
 

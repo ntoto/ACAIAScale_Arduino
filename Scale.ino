@@ -2,7 +2,7 @@
 
 Scale *scale = NULL;
 unsigned long startTime;
-bool isTare = false;
+int state = 0;
 bool isRunning = false;
 
 void setup() 
@@ -23,21 +23,24 @@ void loop() {
     Serial.print("seconds: ");
     Serial.println(scale->getSeconds());
 
-    if (!isTare) {
+    if (state == 0) {
       Serial.println("starting shot");
-      isTare = scale->tare();
-      isRunning = scale->startTimer();
+      if (scale->tare()) {
+        scale->startTimer();
+        state++;
+      }
     }
 
-    if (isRunning && scale->getSeconds() >= 10) {
+    if (state == 1 && scale->getSeconds() >= 10) {
       Serial.println("stopping shot");
       scale->pauseTimer();
-      isRunning = false;
+      state++;
       startTime = millis();
     }
 
-    if (isTare && !isRunning && (startTime + 10000) < millis()) {
+    if (state == 2 && (startTime + 10000) < millis()) {
       scale->stopTimer();
+      state++;
     }
   }
 

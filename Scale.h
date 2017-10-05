@@ -43,6 +43,7 @@ class Scale {
   int parseScaleData(int msgType, unsigned char *payload, size_t len);
   bool isConnected();
   bool reset(const char * message);
+  bool hasBytes(unsigned int bytes);
   
 public:
   bool hasWeightChanged();

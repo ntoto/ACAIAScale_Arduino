@@ -1,6 +1,7 @@
 #include <string.h>
 #include "Buffer.h"
 
+#include <Arduino.h>
 
 unsigned char * Buffer::getPayload() {
 
@@ -8,9 +9,16 @@ unsigned char * Buffer::getPayload() {
 }
 
 
+
+int Buffer::getLen() {
+
+  return len;
+}
+
+
 bool Buffer::hasBytes(unsigned int bytes) {
 
-  if (len < (bytes - 1)) {
+  if (len < bytes) {
     return false;
   }
 
@@ -20,7 +28,7 @@ bool Buffer::hasBytes(unsigned int bytes) {
 
 unsigned char Buffer::getByte(unsigned int pos) {
 
-  if (pos >= dlen) {
+  if (pos >= len) {
     return 0;
   }
 
@@ -30,12 +38,31 @@ unsigned char Buffer::getByte(unsigned int pos) {
 
 void Buffer::addBytes(const unsigned char * bytes, int bLen) {
 
-  if (bLen < 0 || len + bLen < 0) {
+  if ((bLen < 0) || ((len + bLen) < 0) || ((len + bLen) > dlen)) {
     return;
   }
 
   memcpy(data + len, bytes, bLen);
   len += bLen;
+}
+
+
+void Buffer::removeBytes(int bLen) {
+
+  if (bLen <= 0) {
+    return;
+  }
+
+  if (bLen >= len) {
+    len = 0;
+    return;
+  }
+
+  for (int i = 0; i < len - bLen; i++) {
+    data[i] = data[bLen + i];
+  }
+
+  len = len - bLen;
 }
 
 
@@ -48,7 +75,7 @@ void Buffer::reset() {
 Buffer::Buffer() {
 
   len = 0;
-  dlen = 256;
+  dlen = sizeof(data);
 }
 
 
