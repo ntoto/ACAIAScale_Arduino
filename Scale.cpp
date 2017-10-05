@@ -1,6 +1,12 @@
 #include "Scale.h"
 
-#include <CurieBLE.h>
+#include <Arduino.h>
+
+#if defined (__arc__)
+#include "Device_Curie.h"
+#else
+#include "Device_HM10.h"
+#endif
 
 #define HEADER1 0xef
 #define HEADER2 0xdd
@@ -16,11 +22,13 @@
 #define EVENT_WEIGHT 5
 #define EVENT_BATTERY 6
 #define EVENT_TIMER 7
+#define EVENT_KEY 8
 #define EVENT_ACK 11
 
 #define EVENT_WEIGHT_LEN 6
 #define EVENT_BATTERY_LEN 1
 #define EVENT_TIMER_LEN 3
+#define EVENT_KEY_LEN 1
 #define EVENT_ACK_LEN 2
 
 #define TIMER_START 0
@@ -50,7 +58,8 @@ void Scale::printf(const char *format, ...) {
 
 
 void Scale::sendMessage(char msgType, const unsigned char *payload, size_t len) {
-  
+
+  // TODO: malloc can return NULL
   unsigned char *bytes = (unsigned char *)malloc(5 + len);
   unsigned char cksum1 = 0;
   unsigned char cksum2 = 0;
@@ -59,6 +68,7 @@ void Scale::sendMessage(char msgType, const unsigned char *payload, size_t len) 
   bytes[0] = HEADER1;
   bytes[1] = HEADER2;
   bytes[2] = msgType;
+
 
   for (i = 0; i < len; i++) {
     unsigned char val = payload[i] & 0xff;
@@ -74,8 +84,8 @@ void Scale::sendMessage(char msgType, const unsigned char *payload, size_t len) 
   bytes[len + 3] = (cksum1 & 0xFF);
   bytes[len + 4] = (cksum2 & 0xFF);
 
-  characteristic.writeValue(bytes, len + 5);
-  
+
+  device->write(bytes, len + 5);  
   free(bytes);
 }
 
@@ -83,6 +93,7 @@ void Scale::sendMessage(char msgType, const unsigned char *payload, size_t len) 
 void Scale::sendEvent(unsigned char *payload, size_t len) {
 
   unsigned int i;
+  // TODO: malloc can return NULL
   unsigned char *bytes = (unsigned char*)malloc(len + 1);
   bytes[0] = len + 1;
 
@@ -209,6 +220,19 @@ int Scale::parseAckEvent(unsigned char *payload, size_t len) {
 }
 
 
+int Scale::parseKeyEvent(unsigned char *payload, size_t len) {
+
+  if (len < EVENT_KEY_LEN) {
+    dump("Invalid ack event length: ", payload, len);
+    return -1;
+  }
+
+  // ignore key event
+  
+  return EVENT_KEY_LEN;
+}
+
+
 int Scale::parseBatteryEvent(unsigned char *payload, size_t len) {
 
   if (len < EVENT_BATTERY_LEN) {
@@ -262,6 +286,10 @@ int Scale::parseScaleEvent(unsigned char *payload, size_t len) {
     case EVENT_ACK:
       val = parseAckEvent(ptr, ptrLen);
       break;
+      
+    case EVENT_KEY:
+      val = parseKeyEvent(ptr, ptrLen);
+      break;
 
     default:
       dump("Unknown event: ", payload, len);
@@ -312,9 +340,8 @@ int Scale::parseScaleData(int msgType, unsigned char *payload, size_t len) {
       break;
 
     case MSG_STATUS:
-      if (!notificationRequestSent) {
+      if (device->isNewConnection()) {
         sendNotificationRequest();
-        notificationRequestSent = true;
       }
       break;
 
@@ -330,116 +357,43 @@ int Scale::parseScaleData(int msgType, unsigned char *payload, size_t len) {
 }
 
 
-bool Scale::reset(const char * message) {
-
-  Serial.println(message);
-  
-  if (peripheral.connected()) {
-    peripheral.disconnect();
-  }
-
-  connected = false;
-  buffer->reset();
-  notificationRequestSent = false;
-  BLE.scanForUuid("1820");
-
-  return false;
-}
-
-
-bool Scale::isConnected() {
-
-  if (connected && peripheral.connected()) {
-    return true;
-  }
-
-  if (connected) {
-    return reset("device disconnected");
-  }
-  
-  peripheral = BLE.available();
-  if (!peripheral) {
-    return false;
-  }
-
-  BLE.stopScan();
-  
-  if (!peripheral.connect()) {
-    return reset("failed to connect");
-  }
-  
-  if (!peripheral.discoverAttributes()) {
-    return reset("failed to discover attributes");
-  }
-
-  characteristic = peripheral.characteristic("2a80");
-  if (!characteristic) {
-    return reset("failed to get characteristic");
-  }
-  
-  characteristic.subscribe();
-  connected = true;
-
-  return true;
-}
-
-
-bool Scale::hasBytes(unsigned int bytes) {
-
-  if (buffer->hasBytes(bytes)) {
-    return true;
-  }
-
-  // do not loop - try to keep the buffer data queue small
-  if (characteristic.valueUpdated()) {
-    buffer->addBytes(characteristic.value(), characteristic.valueLength()); 
-    if (buffer->hasBytes(bytes)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-
 void Scale::update() {
 
   unsigned char * header = NULL;
 
-  if (!isConnected()) {
+  if (!device->isConnected()) {
     return;
   }
-
+  
   sendHeartbeat();
 
   while (1) {
 
     if (state == READ_HEADER) {
-      if (!hasBytes(HEADER_SIZE)) {
+      if (!device->hasBytes(HEADER_SIZE)) {
         break;
       }
 
-      header = buffer->getPayload();
+      header = device->getPayload();
       if (header[0] != HEADER1 || header[1] != HEADER2) {
         dump("invalid header: ", header, HEADER_SIZE);
-        //buffer->reset();
-        buffer->removeBytes(1);
+        device->removeBytes(1);
         continue;
       }
 
       state = READ_DATA;
     }
     else {
-      if (!hasBytes(HEADER_SIZE + 1)) {
+      if (!device->hasBytes(HEADER_SIZE + 1)) {
         break;
       }
 
-      unsigned char msgType = buffer->getByte(2);
+      unsigned char msgType = device->getByte(2);
       unsigned char len = 0;
       unsigned char offset = 0;
       
       if (msgType == MSG_STATUS || msgType == MSG_EVENT || msgType == MSG_INFO) {
-        len = buffer->getByte(3);
+        len = device->getByte(3);
         if (len == 0) {
           len = 1;
         }
@@ -456,12 +410,12 @@ void Scale::update() {
         }
       }
       
-      if (!hasBytes(HEADER_SIZE + len + 2)) {
+      if (!device->hasBytes(HEADER_SIZE + len + 2)) {
         break;
       }
 
-      parseScaleData(msgType, buffer->getPayload() + HEADER_SIZE + offset, len - offset);
-      buffer->removeBytes(HEADER_SIZE + len + 2);
+      parseScaleData(msgType, device->getPayload() + HEADER_SIZE + offset, len - offset);
+      device->removeBytes(HEADER_SIZE + len + 2);
       state = READ_HEADER;
     }
   }
@@ -470,22 +424,13 @@ void Scale::update() {
 
 void Scale::connect() {
 
-  if (connected) {
-    return;
-  }
-    
-  BLE.scanForUuid("1820");
+  device->connect();
 }
 
 
 void Scale::disconnect() {
 
-  if (!connected) {
-    return;
-  }
-
-  reset("disconnect device");
-  BLE.stopScan();
+  device->disconnect();
 }
 
 
@@ -583,10 +528,8 @@ unsigned char Scale::getSeconds() {
 
 Scale::Scale() {
 
-  this->connected = false;
   this->state = READ_HEADER;
   this->ready = false;
-  this->notificationRequestSent = false;
   this->weight = 0;
   this->weightHasChanged = false;
   this->battery = 0;
@@ -597,14 +540,13 @@ Scale::Scale() {
   this->seconds = 0;
   this->mseconds = 0;
 
-  this->buffer = new Buffer();
-
-  BLE.begin();
+#if defined (__arc__)
+  device = (Device *)new DeviceCurie();
+#else
+  device = (Device *)new DeviceHM10();
+#endif
+  
+  device->init();
 }
 
-
-Scale::~Scale() {
-
-  delete(this->buffer);
-}
 

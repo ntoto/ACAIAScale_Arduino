@@ -16,6 +16,13 @@ int Buffer::getLen() {
 }
 
 
+
+int Buffer::getFreeLen() {
+
+  return dlen - len;
+}
+
+
 bool Buffer::hasBytes(unsigned int bytes) {
 
   if (len < bytes) {
@@ -46,6 +53,12 @@ void Buffer::addBytes(const unsigned char * bytes, int bLen) {
   len += bLen;
 }
 
+
+
+void Buffer::addByteCount(int bLen) {
+
+   len += bLen;
+}
 
 void Buffer::removeBytes(int bLen) {
 
@@ -82,4 +95,5 @@ Buffer::Buffer() {
 Buffer::~Buffer() {
 
 }
+
 

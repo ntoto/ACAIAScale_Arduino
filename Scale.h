@@ -1,19 +1,16 @@
 #ifndef SCALE_H
 #define SCALE_H
 
-#include <CurieBLE.h>
-#include "Buffer.h"
+#include "Device.h"
+#include <string.h>
 
 class Scale {
 
   float weight;
   bool weightHasChanged;
 
-  Buffer * buffer;
+  Device *device;
   int state;
-  
-  BLEDevice peripheral;
-  BLECharacteristic characteristic;
   
   unsigned char battery;
   unsigned char minutes;
@@ -24,7 +21,6 @@ class Scale {
   
   bool connected;
   bool ready;
-  bool notificationRequestSent;
   unsigned long lastHeartbeat;
 
   void printf(const char *format, ...);
@@ -39,6 +35,7 @@ class Scale {
   int parseWeightEvent(unsigned char *payload, size_t len);
   int parseBatteryEvent(unsigned char *payload, size_t len);
   int parseTimerEvent(unsigned char *payload, size_t len);
+  int parseKeyEvent(unsigned char *payload, size_t len);
   int parseScaleEvent(unsigned char *payload, size_t len);
   int parseScaleEvents(unsigned char *payload, size_t len);
   int parseInfo(unsigned char *payload, size_t len);
@@ -60,8 +57,8 @@ public:
   bool pauseTimer();
   bool stopTimer();
   Scale();
-  ~Scale();
 };
 
 #endif
+
 
