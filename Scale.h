@@ -19,6 +19,8 @@ class Scale {
   unsigned char minutes;
   unsigned char seconds;
   unsigned char mseconds;
+
+  int timerState;
   
   bool connected;
   bool ready;

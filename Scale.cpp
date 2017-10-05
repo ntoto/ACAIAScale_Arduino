@@ -32,6 +32,9 @@
 
 #define HEADER_SIZE 3
 
+#define TIMER_STATE_STOPPED 0
+#define TIMER_STATE_STARTED 1
+#define TIMER_STATE_PAUSED 2
 
 void Scale::printf(const char *format, ...) {
 
@@ -507,7 +510,13 @@ bool Scale::startTimer() {
     return false;
   }
 
+  if (timerState == TIMER_STATE_STARTED) {
+    return false;
+  }
+
   sendTimerCommand(TIMER_START);
+  timerState = TIMER_STATE_STARTED;
+  
   return true;
 }
 
@@ -517,8 +526,14 @@ bool Scale::stopTimer() {
   if (!ready) {
     return false;
   }
+  
+  if (timerState == TIMER_STATE_STOPPED) {
+    return false;
+  }
 
   sendTimerCommand(TIMER_STOP);
+  timerState = TIMER_STATE_STOPPED;
+  
   return true;
 }
 
@@ -529,7 +544,14 @@ bool Scale::pauseTimer() {
     return false;
   }
 
+  
+  if (timerState == TIMER_STATE_PAUSED) {
+    return false;
+  }
+  
   sendTimerCommand(TIMER_PAUSE);
+  timerState = TIMER_STATE_PAUSED;
+  
   return true;
 }
 
@@ -569,6 +591,7 @@ Scale::Scale() {
   this->weightHasChanged = false;
   this->battery = 0;
   this->lastHeartbeat = 0;
+  this->timerState = TIMER_STATE_STOPPED;
 
   this->minutes = 0;
   this->seconds = 0;
