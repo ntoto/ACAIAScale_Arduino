@@ -54,6 +54,7 @@ public:
   void disconnect();
   bool tare();
   bool startTimer();
+  bool pauseTimer();
   bool stopTimer();
   Scale();
   ~Scale();

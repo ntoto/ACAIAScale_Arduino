@@ -1,7 +1,7 @@
 #include "Scale.h"
 
 Scale *scale = NULL;
-unsigned long start;
+unsigned long startTime;
 bool isTare = false;
 bool isRunning = false;
 
@@ -10,8 +10,6 @@ void setup()
     Serial.begin(9600);
     scale = new Scale();
     scale->connect();
-
-    start = millis();
 }
 
 void loop() {
@@ -33,8 +31,13 @@ void loop() {
 
     if (isRunning && scale->getSeconds() >= 10) {
       Serial.println("stopping shot");
-      scale->stopTimer();
+      scale->pauseTimer();
       isRunning = false;
+      startTime = millis();
+    }
+
+    if (isTare && !isRunning && (startTime + 10000) < millis()) {
+      scale->stopTimer();
     }
   }
 

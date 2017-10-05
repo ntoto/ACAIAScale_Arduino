@@ -24,9 +24,8 @@
 #define EVENT_ACK_LEN 2
 
 #define TIMER_START 0
-#define TIMER_PAUSE 1
-#define TIMER_STOP 2
-#define TIMER_WEIGHTSTART 3
+#define TIMER_STOP 1
+#define TIMER_PAUSE 2
 
 #define READ_HEADER 0
 #define READ_DATA 1
@@ -496,6 +495,17 @@ bool Scale::stopTimer() {
   }
 
   sendTimerCommand(TIMER_STOP);
+  return true;
+}
+
+
+bool Scale::pauseTimer() {
+
+  if (!ready) {
+    return false;
+  }
+
+  sendTimerCommand(TIMER_PAUSE);
   return true;
 }
 
