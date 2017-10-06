@@ -13,8 +13,13 @@
 // we end up with invalid packet. 
 // The DeviceHM10 implementation can recover from that - 1 byte is removed
 // at a time until the correct header is found.
+// #include <SoftwareSerial.h>
 
-#include <SoftwareSerial.h>
+// AltSoftSerial uses two separate (non circular) buffer or RX (80 bytes) and RX
+// It is faster than SoftwareSerial and does not seem to lose packets
+
+#include <AltSoftSerial.h>
+
 #define TX_PIN 8
 #define RX_PIN 9
 #endif
@@ -30,7 +35,8 @@ class DeviceHM10 : public Device {
 #if defined(HAVE_HWSERIAL1)
   HardwareSerial * serial = NULL;
 #else
-  SoftwareSerial * serial = NULL;
+  //SoftwareSerial * serial = NULL;
+  AltSoftSerial * serial = NULL;
 #endif
   
   bool reset(const char * message);

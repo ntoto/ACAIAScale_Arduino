@@ -141,7 +141,8 @@ void DeviceHM10::init() {
 #if defined(HAVE_HWSERIAL1)
   serial = &Serial1;
 #else
-  serial = new SoftwareSerial(TX_PIN, RX_PIN);
+  //serial = new SoftwareSerial(TX_PIN, RX_PIN);
+  serial = new AltSoftSerial(TX_PIN, RX_PIN);
 #endif
 
   serial->begin(9600);
