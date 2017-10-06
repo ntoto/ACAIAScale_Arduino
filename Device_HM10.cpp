@@ -1,7 +1,5 @@
 #include "Device_HM10.h"
 
-#include <Arduino.h>
-
 void DeviceHM10::serialPrintf(const char *format, ...) {
 
   va_list args;
@@ -140,7 +138,12 @@ void DeviceHM10::disconnect() {
 
 void DeviceHM10::init() {
 
-  serial = new SoftwareSerial(8, 9);
+#if defined(HAVE_HWSERIAL1)
+  serial = &Serial1;
+#else
+  serial = new SoftwareSerial(TX_PIN, RX_PIN);
+#endif
+
   serial->begin(9600);
 }
 
