@@ -111,11 +111,13 @@ void DeviceHM10::connect() {
     return;
   }
 
-  serial->print("AT+IMME1");
-  serial->print("AT+MODE0");
-  serial->print("AT+COMP1");
-  serial->print("AT+UUID0x1800");
-  serial->print("AT+CHAR0x2A80");
+  //serial->print("AT+RENEW");
+  //serial->print("AT+RESET");
+  //serial->print("AT+IMME1");
+  //serial->print("AT+MODE0");
+  //serial->print("AT+COMP1");
+  //serial->print("AT+UUID0x1800");
+  //serial->print("AT+CHAR0x2A80");
   serial->print("AT+ROLE1");
   // delay required to register new mode
   delay(1000);
