@@ -16,6 +16,7 @@ void DeviceHM10::serialPrintf(const char *format, ...) {
 void DeviceHM10::removeBytes(int bLen) {
 
   buffer->removeBytes(bLen);
+  checkConnectionStatus();
 }
 
 
@@ -31,8 +32,41 @@ unsigned char * DeviceHM10::getPayload() {
 }
 
 
-bool DeviceHM10::hasBytes(unsigned int bytes) {
+bool DeviceHM10::checkConnectionStatus() {
+
+  if (buffer->getLen() < 3) {
+    return true;
+  }
   
+  char * payload = buffer->getPayload();
+  // OK+CONN / OK+LOST
+  if (payload[0] != 'O' || payload[1] != 'K' || payload[2] != '+') {
+    return true;
+  }
+
+  if (buffer->getLen() < 7) {
+    int total = serial->readBytes(buffer->getPayload() + buffer->getLen(), 7 - buffer->getLen());
+    if (total > 0) {
+      buffer->addByteCount(total);
+    }
+  }
+  
+  if (buffer->getLen() < 7) {
+    return true;
+  }
+  
+  if (strncmp(buffer->getPayload(), "OK+CONN", 7) == 0) {
+    buffer->removeBytes(7);
+    return true;
+  }
+
+  // BAD: assuming it is OK+LOST
+  return reset("device disconnected");
+}
+
+
+bool DeviceHM10::hasBytes(unsigned int bytes) {
+
   if (buffer->hasBytes(bytes)) {
     return true;
   }
@@ -50,6 +84,10 @@ bool DeviceHM10::hasBytes(unsigned int bytes) {
     if (total > 0) {
       buffer->addByteCount(bAvailable);
     }
+  }
+
+  if (!checkConnectionStatus()) {
+    return false;
   }
   
   if (buffer->hasBytes(bytes)) {
@@ -78,6 +116,11 @@ bool DeviceHM10::reset(const char * message) {
   newConnection = false;
   buffer->reset();
 
+  // purge serial buffer
+  while (serial->available()) {
+    int val = serial->read();
+  }
+
   return false;
 }
 
@@ -103,8 +146,9 @@ bool DeviceHM10::isConnected() {
   if (!sendCommand("", "")) return false;
   if (!sendCommand("RENEW", "")) return false;
   if (!sendCommand("IMME", "1")) return false;
-  if (!sendCommand("MODE", "0")) return false;
+  if (!sendCommand("MODE", "1")) return false;
   if (!sendCommand("COMP", "1")) return false;
+  if (!sendCommand("NOTI", "1")) return false;
   if (!sendCommand("UUID", "0x1800")) return false;
   if (!sendCommand("CHAR", "0x2A80")) return false;
   if (!sendCommand("ROLE", "1")) return false;

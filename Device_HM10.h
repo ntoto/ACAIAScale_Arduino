@@ -49,6 +49,7 @@ public:
   void connect();
   void disconnect();
   void init();
+  bool checkConnectionStatus();
   void removeBytes(int bLen);
   unsigned char getByte(unsigned int pos);
   unsigned char * getPayload();
