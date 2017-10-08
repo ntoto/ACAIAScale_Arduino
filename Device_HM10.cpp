@@ -95,11 +95,95 @@ bool DeviceHM10::isNewConnection() {
 
 bool DeviceHM10::isConnected() {
 
+  int count = 0;
   if (connected) {
     return true;
   }
+  
+  if (!sendCommand("", "")) return false;
+  if (!sendCommand("RENEW", "")) return false;
+  if (!sendCommand("IMME", "1")) return false;
+  if (!sendCommand("MODE", "0")) return false;
+  if (!sendCommand("COMP", "1")) return false;
+  if (!sendCommand("UUID", "0x1800")) return false;
+  if (!sendCommand("CHAR", "0x2A80")) return false;
+  if (!sendCommand("ROLE", "1")) return false;
+  delay(1000);
+  if (!sendCommand("CO0", mac)) return false;
+  
+  connected = true;
+  newConnection = true;
 
   return true;
+}
+
+
+bool DeviceHM10::sendCommand(const char *cmd, const char *value) {
+
+  char buffer[40];
+  char expected[40];
+  int count = 0;
+
+  while (count < 5) {
+    delay(count * 100);
+    count++;
+
+    // purge serial buffer
+    while (serial->available()) {
+      int val = serial->read();
+    }
+    
+    if (cmd == NULL || strlen(cmd) == 0) {
+      serialPrintf("AT", cmd, value);
+      snprintf(expected, sizeof(expected), "OK");
+    }
+    else {
+      serialPrintf("AT+%s%s", cmd, value);
+  
+      if (value == NULL || strlen(value) == 0) {
+        snprintf(expected, sizeof(expected), "OK+%s", cmd);
+      }
+      else if (cmd == "CO0") {
+        snprintf(expected, sizeof(expected), "OK+CO00A");
+      }
+      else {
+        snprintf(expected, sizeof(expected), "OK+Set:%s", value);
+      }
+    }
+  
+    int total = serial->readBytes(buffer, strlen(expected));
+  
+    if (total >= 0) {
+      // read extra bytes still in buffer
+      while (serial->available() && (total < sizeof(buffer))) {
+        buffer[total++] = serial->read();
+      }
+    
+      buffer[total] = '\0';
+    }
+    
+    if (total <= 0) {
+      continue;
+    }
+    
+    if (strcmp(buffer, expected) != 0) {
+      Serial.print("command ");
+      Serial.print(cmd);
+      Serial.print(" failed: ");
+      Serial.println(buffer);
+      Serial.print("expected: ");
+      Serial.println(expected);
+      
+      return false;
+    }
+    
+    return true;
+  }
+
+  Serial.print("failed to get answer for command ");
+  Serial.println(cmd);
+
+  return false;
 }
 
 
@@ -109,23 +193,7 @@ void DeviceHM10::connect() {
     return;
   }
 
-  serial->print("AT");
-  // reset to factory
-  serial->print("AT+RENEW");
-  // stop auto connect
-  serial->print("AT+IMME1");
-  serial->print("AT+MODE0");
-  serial->print("AT+COMP1");
-  serial->print("AT+UUID0x1800");
-  serial->print("AT+CHAR0x2A80");
-  // central mode
-  serial->print("AT+ROLE1");
-  // delay required to register new mode
-  delay(1000);
-  serialPrintf("AT+CO0%s", mac);
-  
-  connected = true;
-  newConnection = true;
+  // TODO: Do discovery
 }
 
 

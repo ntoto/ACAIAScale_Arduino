@@ -41,6 +41,7 @@ class DeviceHM10 : public Device {
   
   bool reset(const char * message);
   void serialPrintf(const char *format, ...);
+  bool sendCommand(const char *cmd, const char *value);
   
 public:
   bool isNewConnection();
