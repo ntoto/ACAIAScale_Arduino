@@ -32,31 +32,68 @@ unsigned char * DeviceHM10::getPayload() {
 }
 
 
+void DeviceHM10::dump(const char * msg, const unsigned char * payload, size_t len) {
+
+  Serial.print(msg);
+  
+  for (unsigned int i = 0; i < len; i++) {
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%.2X", payload[i]);
+    Serial.print(buf);
+  }
+
+  Serial.println("");
+}
+
+
 bool DeviceHM10::checkConnectionStatus() {
 
   if (buffer->getLen() < 3) {
-    return true;
+    int count = serial->readBytes(buffer->getPayload() + buffer->getLen(), 3);
+    buffer->addByteCount(count);
+    if (count < 3) {
+      return linked;
+    }
   }
   
   char * payload = buffer->getPayload();
-  // OK+CONN / OK+LOST
+  // OK+CONNX / OK+LOST
   if (payload[0] != 'O' || payload[1] != 'K' || payload[2] != '+') {
     return true;
   }
 
+
   if (buffer->getLen() < 7) {
-    int total = serial->readBytes(buffer->getPayload() + buffer->getLen(), 7 - buffer->getLen());
-    if (total > 0) {
-      buffer->addByteCount(total);
+    int need = 8 - buffer->getLen();
+    int count = serial->readBytes(buffer->getPayload() + buffer->getLen(), need);
+    buffer->addByteCount(count);
+    if (buffer->getLen() < 7) {
+      return linked;
     }
   }
-  
-  if (buffer->getLen() < 7) {
-    return true;
+
+  if (buffer->getLen() > 7) {
+    if ( memcmp(buffer->getPayload(), "OK+CONNE", 8) == 0 || 
+         memcmp(buffer->getPayload(), "OK+CONNF", 8) == 0 
+       ) {
+      
+      linked = false;
+      initialized = false;
+      buffer->removeBytes(8);
+      return linked;
+    }
+
+    if (memcmp(buffer->getPayload(), "OK+CONNA", 8) == 0) {
+      buffer->removeBytes(8);
+      return linked;
+    }
   }
-  
-  if (strncmp(buffer->getPayload(), "OK+CONN", 7) == 0) {
+    
+  if (memcmp(buffer->getPayload(), "OK+CONN", 7) == 0) {
     buffer->removeBytes(7);
+    newConnection = true;
+    linked = true;
+    Serial.println("device connected");
     return true;
   }
 
@@ -70,7 +107,7 @@ bool DeviceHM10::hasBytes(unsigned int bytes) {
   if (buffer->hasBytes(bytes)) {
     return true;
   }
-  
+
   int bAvailable = bytes - buffer->getLen();
 
   
@@ -89,7 +126,7 @@ bool DeviceHM10::hasBytes(unsigned int bytes) {
   if (!checkConnectionStatus()) {
     return false;
   }
-  
+
   if (buffer->hasBytes(bytes)) {
     return true;
   }
@@ -100,7 +137,7 @@ bool DeviceHM10::hasBytes(unsigned int bytes) {
 
 void DeviceHM10::write(const unsigned char *payload, int len) {
 
-  if (!connected) {
+  if (!linked) {
     return;
   }
 
@@ -112,8 +149,9 @@ bool DeviceHM10::reset(const char * message) {
 
   Serial.println(message);
 
-  connected = false;
+  linked = false;
   newConnection = false;
+  initialized = false;
   buffer->reset();
 
   // purge serial buffer
@@ -138,27 +176,26 @@ bool DeviceHM10::isNewConnection() {
 
 bool DeviceHM10::isConnected() {
 
-  int count = 0;
-  if (connected) {
+  if (linked) {
     return true;
   }
-  
-  if (!sendCommand("", "")) return false;
-  if (!sendCommand("RENEW", "")) return false;
-  if (!sendCommand("IMME", "1")) return false;
-  if (!sendCommand("MODE", "1")) return false;
-  if (!sendCommand("COMP", "1")) return false;
-  if (!sendCommand("NOTI", "1")) return false;
-  if (!sendCommand("UUID", "0x1800")) return false;
-  if (!sendCommand("CHAR", "0x2A80")) return false;
-  if (!sendCommand("ROLE", "1")) return false;
-  delay(1000);
-  if (!sendCommand("CO0", mac)) return false;
-  
-  connected = true;
-  newConnection = true;
 
-  return true;
+  if (!initialized) {
+    if (!sendCommand("", "")) return false;
+    if (!sendCommand("RENEW", "")) return false;
+    if (!sendCommand("IMME", "1")) return false;
+    if (!sendCommand("MODE", "1")) return false;
+    if (!sendCommand("COMP", "1")) return false;
+    if (!sendCommand("NOTI", "1")) return false;
+    if (!sendCommand("UUID", "0x1800")) return false;
+    if (!sendCommand("CHAR", "0x2A80")) return false;
+    if (!sendCommand("ROLE", "1")) return false;
+    delay(1000);
+    if (!sendCommand("CON", mac)) return false;
+    initialized = true;
+  }
+
+  return checkConnectionStatus();
 }
 
 
@@ -187,8 +224,9 @@ bool DeviceHM10::sendCommand(const char *cmd, const char *value) {
       if (value == NULL || strlen(value) == 0) {
         snprintf(expected, sizeof(expected), "OK+%s", cmd);
       }
-      else if (cmd == "CO0") {
-        snprintf(expected, sizeof(expected), "OK+CO00A");
+      else if (cmd == "CON") {
+        return true;
+        //snprintf(expected, sizeof(expected), "OK+CONNA");
       }
       else {
         snprintf(expected, sizeof(expected), "OK+Set:%s", value);
@@ -233,7 +271,7 @@ bool DeviceHM10::sendCommand(const char *cmd, const char *value) {
 
 void DeviceHM10::connect() {
 
-  if (connected) {
+  if (linked) {
     return;
   }
 
@@ -243,7 +281,7 @@ void DeviceHM10::connect() {
 
 void DeviceHM10::disconnect() {
 
-  if (!this->connected) {
+  if (!this->linked) {
     return;
   }
 
@@ -267,7 +305,8 @@ void DeviceHM10::init() {
 DeviceHM10::DeviceHM10() {
 
   buffer = new Buffer();
-  connected = false;
+  linked = false;
+  initialized = false;
   newConnection = false;
 }
 

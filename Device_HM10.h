@@ -27,8 +27,9 @@
 class DeviceHM10 : public Device {
 
   Buffer * buffer;
-  bool connected = false;
+  bool linked = false;
   bool newConnection = false;
+  bool initialized = false;
 
   const char * mac = "001C9714F68E";
   
@@ -50,6 +51,7 @@ public:
   void disconnect();
   void init();
   bool checkConnectionStatus();
+  void dump(const char * msg, const unsigned char * payload, size_t len);
   void removeBytes(int bLen);
   unsigned char getByte(unsigned int pos);
   unsigned char * getPayload();

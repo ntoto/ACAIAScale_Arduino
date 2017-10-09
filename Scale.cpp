@@ -372,7 +372,7 @@ void Scale::update() {
 
     if (state == READ_HEADER) {
       if (!device->hasBytes(HEADER_SIZE)) {
-        break;
+        return;
       }
 
       header = device->getPayload();
@@ -386,7 +386,7 @@ void Scale::update() {
     }
     else {
       if (!device->hasBytes(HEADER_SIZE + 1)) {
-        break;
+        return;
       }
 
       unsigned char msgType = device->getByte(2);
@@ -412,7 +412,7 @@ void Scale::update() {
       }
       
       if (!device->hasBytes(HEADER_SIZE + len + 2)) {
-        break;
+        return;
       }
 
       parseScaleData(msgType, device->getPayload() + HEADER_SIZE + offset, len - offset);
