@@ -330,7 +330,7 @@ int Scale::parseInfo(unsigned char *payload, size_t len) {
 }
 
 
-int Scale::parseScaleData(int msgType, unsigned char *payload, size_t len) {
+int Scale::parseScaleData(unsigned char *payload, size_t len) {
 
   int ret = 0;
   
@@ -382,19 +382,20 @@ void Scale::update() {
         continue;
       }
 
+      msgType = header[2];
+      device->removeBytes(HEADER_SIZE);
       state = READ_DATA;
     }
     else {
-      if (!device->hasBytes(HEADER_SIZE + 1)) {
+      if (!device->hasBytes(1)) {
         return;
       }
 
-      unsigned char msgType = device->getByte(2);
       unsigned char len = 0;
       unsigned char offset = 0;
       
       if (msgType == MSG_STATUS || msgType == MSG_EVENT || msgType == MSG_INFO) {
-        len = device->getByte(3);
+        len = device->getByte(0);
         if (len == 0) {
           len = 1;
         }
@@ -411,12 +412,12 @@ void Scale::update() {
         }
       }
       
-      if (!device->hasBytes(HEADER_SIZE + len + 2)) {
+      if (!device->hasBytes(len + 2)) {
         return;
       }
 
-      parseScaleData(msgType, device->getPayload() + HEADER_SIZE + offset, len - offset);
-      device->removeBytes(HEADER_SIZE + len + 2);
+      parseScaleData(device->getPayload() + offset, len - offset);
+      device->removeBytes(len + 2);
       state = READ_HEADER;
     }
   }

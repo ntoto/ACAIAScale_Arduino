@@ -12,6 +12,7 @@ void setup()
     scale->connect();
 }
 
+
 void loop() {
   
   scale->update();
@@ -31,15 +32,16 @@ void loop() {
       }
     }
 
-    if (state == 1 && scale->getSeconds() >= 10) {
+    if (state == 1 && scale->getSeconds() >= 5) {
       Serial.println("stopping shot");
       scale->pauseTimer();
       state++;
       startTime = millis();
     }
 
-    if (state == 2 && (startTime + 10000) < millis()) {
+    if (state == 2 && (startTime + 5000) < millis()) {
       scale->stopTimer();
+      //scale->disconnect();
       state++;
     }
   }

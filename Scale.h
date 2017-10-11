@@ -11,6 +11,7 @@ class Scale {
 
   Device *device;
   int state;
+  int msgType;
   
   unsigned char battery;
   unsigned char minutes;
@@ -39,7 +40,7 @@ class Scale {
   int parseScaleEvent(unsigned char *payload, size_t len);
   int parseScaleEvents(unsigned char *payload, size_t len);
   int parseInfo(unsigned char *payload, size_t len);
-  int parseScaleData(int msgType, unsigned char *payload, size_t len);
+  int parseScaleData(unsigned char *payload, size_t len);
   bool isConnected();
   bool reset(const char * message);
   bool hasBytes(unsigned int bytes);

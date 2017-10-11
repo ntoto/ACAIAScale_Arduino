@@ -4,6 +4,14 @@
 #include <Arduino.h>
 #include "Device.h"
 
+enum ConnectionStatus {
+  STATUS_DISCONNECTED,
+  STATUS_INITIALIZING,
+  STATUS_CONNECTING,
+  STATUS_CONNECTED,
+  STATUS_DISCONNECTING
+};
+
 #if defined(HAVE_HWSERIAL1)
 #include <HardwareSerial.h>
 #else
@@ -27,9 +35,10 @@
 class DeviceHM10 : public Device {
 
   Buffer * buffer;
-  bool linked = false;
+  bool connected = false;
   bool newConnection = false;
-  bool initialized = false;
+
+  int status;
 
   const char * mac = "001C9714F68E";
   
@@ -43,6 +52,9 @@ class DeviceHM10 : public Device {
   bool reset(const char * message);
   void serialPrintf(const char *format, ...);
   bool sendCommand(const char *cmd, const char *value);
+  bool isDeviceConnected();
+  bool checkConnectionStatus();
+  boolean initDevice();
   
 public:
   bool isNewConnection();
@@ -50,7 +62,6 @@ public:
   void connect();
   void disconnect();
   void init();
-  bool checkConnectionStatus();
   void dump(const char * msg, const unsigned char * payload, size_t len);
   void removeBytes(int bLen);
   unsigned char getByte(unsigned int pos);
