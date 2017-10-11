@@ -302,6 +302,11 @@ void DeviceHM10::disconnect() {
     return;
   }
 
+  if (status == STATUS_INITIALIZING) {
+    status = STATUS_DISCONNECTED;
+    return;
+  }
+
   status = STATUS_DISCONNECTING;
 }
 
